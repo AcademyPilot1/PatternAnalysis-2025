@@ -18,3 +18,6 @@ In the recognition folder, you will find many recognition problems solved includ
 * transformers
 etc.
 
+## ConvNeXt Network for Alzheimers Classification
+
+here we need to explain the project - dont forget to do that!
