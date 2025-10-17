@@ -26,7 +26,7 @@ from timm.layers import trunc_normal_, DropPath
 
 # Temporary transform to just convert images to tensor (no normalization yet)
 temp_transform = transforms.Compose([
-    transforms.Grayscale(num_output_channels=3),
+    transforms.Grayscale(num_output_channels=1),
     transforms.Resize((224, 224)),
     transforms.ToTensor()
 ])
@@ -239,7 +239,7 @@ scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
 start_time = time.time()
 print("")
 print("Begining Training:")
-for epoch in range(80):
+for epoch in range(1):
 
     prev_epoch_start_time = time.time()
     model.train()

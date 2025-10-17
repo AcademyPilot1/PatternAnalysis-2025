@@ -51,6 +51,7 @@ train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_worker
 test_loader  = DataLoader(test_dataset, batch_size=16, shuffle=False, num_workers=1)
 
 print(f"Train length: {len(train_dataset)}, Test length: {len(test_dataset)}")
+print(train_dataset[0][0].mean(), train_dataset[0][0].std())
 
 
 class SmallBlock(nn.Module):
@@ -146,7 +147,7 @@ model = MiniConvNeXt(in_chans=1, num_classes=2,
                  depths=(1,1,2,1), dims=(32,64,128,256)).to(device)
     
     
-EPOCHS = 80    
+EPOCHS = 1    
     
 criterion = nn.CrossEntropyLoss()
 #optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=1e-4)  # AdamW is preferable
