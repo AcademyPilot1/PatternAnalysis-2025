@@ -21,6 +21,9 @@ from torch.utils.data import DataLoader
 from timm.layers import trunc_normal_, DropPath
 
 
+
+
+
 YOUR_MEAN = 0.1156
 YOUR_STD = 0.2198
 
@@ -57,7 +60,7 @@ print(train_dataset[0][0].mean(), train_dataset[0][0].std())
 class SmallBlock(nn.Module):
     def __init__(self, dim, layer_scale_init_value=1e-5):
         super().__init__()
-        self.dwconv = nn.Conv2d(dim, dim, kernel_size=7, padding=3, groups=dim)
+        self.dwconv = nn.Conv2d(dim, dim, kernel_size=3, padding=1, groups=dim)
         # We'll use channels_last LayerNorm via explicit permute
         self.norm = nn.LayerNorm(dim, eps=1e-6)
         self.pw1 = nn.Linear(dim, 4*dim)
@@ -147,7 +150,7 @@ model = MiniConvNeXt(in_chans=1, num_classes=2,
                  depths=(1,1,2,1), dims=(32,64,128,256)).to(device)
     
     
-EPOCHS = 1    
+EPOCHS = 100
     
 criterion = nn.CrossEntropyLoss()
 #optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=1e-4)  # AdamW is preferable
@@ -157,9 +160,10 @@ criterion = nn.CrossEntropyLoss()
 from torch.optim.lr_scheduler import OneCycleLR
 #scheduler = OneCycleLR(optimizer, max_lr=3e-3, steps_per_epoch=len(train_loader), epochs=EPOCHS)
 
-
-optimizer = torch.optim.AdamW(model.parameters(), lr=2e-4, weight_decay=1e-4)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.5)
+optimizer = optim.AdamW(model.parameters(), lr=2e-3, weight_decay=1e-4)
+scheduler = OneCycleLR(optimizer, max_lr=5e-3,
+                       steps_per_epoch=len(train_loader),
+                       epochs=EPOCHS)
 
 scaler = torch.amp.GradScaler(enabled=False)
 
