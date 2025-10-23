@@ -27,16 +27,37 @@ from timm.layers import trunc_normal_, DropPath
 YOUR_MEAN = 0.1156
 YOUR_STD = 0.2198
 
+# og transforms
+#train_transform = transforms.Compose([
+#    transforms.Grayscale(num_output_channels=1),  
+#    transforms.Resize((224,224)),
+#    transforms.RandomHorizontalFlip(p=0.5),
+#    transforms.RandomRotation(8),
+#    transforms.RandomAffine(degrees=0, translate=(0.05,0.05), scale=(0.95,1.05)),
+#    transforms.ToTensor(),
+#    transforms.Normalize(mean=[YOUR_MEAN], std=[YOUR_STD])
+#])
+
+# new transforms
+# Og 100 epoch: 75.28
+# Change -> add colorjitter, increase rotation to 10 degrees
+
+
+
+# new drop out in model forward at 0.2
+
 
 train_transform = transforms.Compose([
     transforms.Grayscale(num_output_channels=1),  
+    transforms.ColorJitter(brightness=0.10, contrast=0.10),
     transforms.Resize((224,224)),
     transforms.RandomHorizontalFlip(p=0.5),
-    transforms.RandomRotation(8),
+    transforms.RandomRotation(10),
     transforms.RandomAffine(degrees=0, translate=(0.05,0.05), scale=(0.95,1.05)),
     transforms.ToTensor(),
     transforms.Normalize(mean=[YOUR_MEAN], std=[YOUR_STD])
 ])
+
 
 test_transform = transforms.Compose([
     transforms.Grayscale(num_output_channels=1), 
@@ -86,10 +107,11 @@ class SmallBlock(nn.Module):
 
 class MiniConvNeXt(nn.Module):
     def __init__(self, in_chans=1, num_classes=2,
-                 depths=(1,1,2,1), dims=(32,64,128,256), layer_scale_init_value=1e-5):
+                 depths=(1,1,2,2), dims=(32,64,128,256), layer_scale_init_value=1e-5):
         super().__init__()
         assert len(depths)==4 and len(dims)==4
 
+        self.dropout = nn.Dropout(p=0.2)
         # stem
         self.downsamples = nn.ModuleList()
         stem = nn.Sequential(
@@ -139,6 +161,7 @@ class MiniConvNeXt(nn.Module):
 
     def forward(self, x):
         x = self.forward_features(x)
+        x = self.dropout(x)
         x = self.head(x)
         return x
     
@@ -147,10 +170,10 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 if not torch.cuda.is_available():
     print("Warning CUDA not Found. Using CPU")    
 model = MiniConvNeXt(in_chans=1, num_classes=2,
-                 depths=(1,1,2,1), dims=(32,64,128,256)).to(device)
+                 depths=(1,1,2,2), dims=(32,64,128,256)).to(device)
     
     
-EPOCHS = 100
+EPOCHS = 200
     
 criterion = nn.CrossEntropyLoss()
 #optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=1e-4)  # AdamW is preferable
@@ -208,9 +231,9 @@ for epoch in range(EPOCHS):
         image_count += images.size(0)
 
         # Occasional progress report
-        if image_count % 500 == 0:
-            print(f"Trained {image_count} images, Time: {time.time() - prev_100_images_start:.1f}s")
-            prev_100_images_start = time.time()
+        #if image_count % 500 == 0:
+        #    print(f"Trained {image_count} images, Time: {time.time() - prev_100_images_start:.1f}s")
+        #    prev_100_images_start = time.time()
 
     avg_loss = running_loss / len(train_loader)
     print(f"Epoch {epoch+1:02d}/{EPOCHS} | Loss: {avg_loss:.4f} | Time: {time.time()-epoch_start:.1f}s")

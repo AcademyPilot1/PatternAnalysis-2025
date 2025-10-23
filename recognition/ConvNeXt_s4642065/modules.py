@@ -308,6 +308,12 @@ print(f"Finished Testing in {time.time() - start_test_time} seconds")
 #Test Accuracy: 67.84%
 #Finished Testing in 45.61187219619751 seconds
 
+# best result yet acheived on smaller convnext model = MiniConvNeXt(in_chans=1, num_classes=2,
+#                 depths=(1,1,2,1), dims=(32,64,128,256)).to(device)
+# after 100 epochs, final loss 0.0653 (best 0.606) accuracy 75.28%
+# this was after reverting to layernorm and kernel size = 3
+# model trained in 4922 seconds
 
-
-
+# ok improvement with dropout 0.2 added to model forward and new transforms
+# after 100 epochs, final loss 0.0388 (best 0.0350) accuracy only marginally
+# better at 76.1%
