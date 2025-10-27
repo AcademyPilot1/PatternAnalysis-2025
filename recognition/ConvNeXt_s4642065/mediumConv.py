@@ -47,12 +47,16 @@ YOUR_STD = 0.2198
 # new drop out in model forward at 0.2
 
 
+YOUR_MEAN = 0.1156
+YOUR_STD = 0.2198
+
+
 train_transform = transforms.Compose([
     transforms.Grayscale(num_output_channels=1),  
-    transforms.ColorJitter(brightness=0.10, contrast=0.10),
+    transforms.ColorJitter(brightness=0.15, contrast=0.15),
     transforms.Resize((224,224)),
     transforms.RandomHorizontalFlip(p=0.5),
-    transforms.RandomRotation(10),
+    transforms.RandomRotation(12),
     transforms.RandomAffine(degrees=0, translate=(0.05,0.05), scale=(0.95,1.05)),
     transforms.ToTensor(),
     transforms.Normalize(mean=[YOUR_MEAN], std=[YOUR_STD])
@@ -66,7 +70,8 @@ test_transform = transforms.Compose([
     transforms.Normalize(mean=[YOUR_MEAN], std=[YOUR_STD])
 ])
 
-# Datasets
+
+# load data
 train_dataset = datasets.ImageFolder(root="/home/groups/comp3710/ADNI/AD_NC/train", transform=train_transform)
 test_dataset  = datasets.ImageFolder(root="/home/groups/comp3710/ADNI/AD_NC/test",  transform=test_transform)
 
@@ -78,15 +83,35 @@ print(f"Train length: {len(train_dataset)}, Test length: {len(test_dataset)}")
 print(train_dataset[0][0].mean(), train_dataset[0][0].std())
 
 
-class SmallBlock(nn.Module):
-    def __init__(self, dim, layer_scale_init_value=1e-5):
+class DropPath(nn.Module):
+    """Stochastic Depth (Drop Path) for regularization"""
+    def __init__(self, drop_prob=0.0):
         super().__init__()
-        self.dwconv = nn.Conv2d(dim, dim, kernel_size=3, padding=1, groups=dim)
-        # We'll use channels_last LayerNorm via explicit permute
+        self.drop_prob = drop_prob
+
+    def forward(self, x):
+        if self.drop_prob == 0. or not self.training:
+            return x
+        keep_prob = 1 - self.drop_prob
+        shape = (x.shape[0],) + (1,) * (x.ndim - 1)
+        random_tensor = keep_prob + torch.rand(shape, dtype=x.dtype, device=x.device)
+        random_tensor.floor_()
+        output = x.div(keep_prob) * random_tensor
+        return output
+
+
+class SmallBlock(nn.Module):
+    """ConvNeXt block with 5x5 depthwise conv and stochastic depth"""
+    def __init__(self, dim, layer_scale_init_value=1e-5, drop_path=0.0):
+        super().__init__()
+        # 5x5 depthwise convolution
+        self.dwconv = nn.Conv2d(dim, dim, kernel_size=5, padding=2, groups=dim)
         self.norm = nn.LayerNorm(dim, eps=1e-6)
         self.pw1 = nn.Linear(dim, 4*dim)
         self.act = nn.GELU()
         self.pw2 = nn.Linear(4*dim, dim)
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        
         if layer_scale_init_value > 0:
             self.gamma = nn.Parameter(layer_scale_init_value * torch.ones((dim)), requires_grad=True)
         else:
@@ -103,23 +128,26 @@ class SmallBlock(nn.Module):
         if self.gamma is not None:
             x = self.gamma * x
         x = x.permute(0, 3, 1, 2)                   # N,C,H,W
-        return shortcut + x
+        return shortcut + self.drop_path(x)
+
 
 class MiniConvNeXt(nn.Module):
     def __init__(self, in_chans=1, num_classes=2,
-                 depths=(1,1,2,2), dims=(32,64,128,256), layer_scale_init_value=1e-5):
+                 depths=(2, 2, 6, 2), dims=(48, 96, 192, 384), 
+                 layer_scale_init_value=1e-5, drop_path_rate=0.1):
         super().__init__()
-        assert len(depths)==4 and len(dims)==4
+        assert len(depths) == 4 and len(dims) == 4
 
-        self.dropout = nn.Dropout(p=0.2)
-        # stem
+        self.dropout = nn.Dropout(p=0.3)
+        
+        # Stem
         self.downsamples = nn.ModuleList()
         stem = nn.Sequential(
             nn.Conv2d(in_chans, dims[0], kernel_size=4, stride=4),
-            # Use LayerNorm over channels_first by wrapping below in forward_features
         )
         self.downsamples.append(stem)
 
+        # Downsampling layers between stages
         for i in range(3):
             self.downsamples.append(
                 nn.Sequential(
@@ -127,15 +155,22 @@ class MiniConvNeXt(nn.Module):
                 )
             )
 
-        # stages
+        # Calculate stochastic depth rates (linearly increasing)
+        dp_rates = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
+        
+        # Build stages with progressive drop path
         self.stages = nn.ModuleList()
+        cur = 0
         for i in range(4):
             blocks = []
             for _ in range(depths[i]):
-                blocks.append(SmallBlock(dims[i], layer_scale_init_value=layer_scale_init_value))
+                blocks.append(SmallBlock(dims[i], 
+                                        layer_scale_init_value=layer_scale_init_value,
+                                        drop_path=dp_rates[cur]))
+                cur += 1
             self.stages.append(nn.Sequential(*blocks))
 
-        # final norm and head
+        # Final norm and head
         self.final_norm = nn.LayerNorm(dims[-1], eps=1e-6)
         self.head = nn.Linear(dims[-1], num_classes)
 
@@ -151,10 +186,9 @@ class MiniConvNeXt(nn.Module):
     def forward_features(self, x):
         # x: N, C, H, W  (C=1)
         for i in range(4):
-            x = self.downsamples[i](x)   # conv downsample (N,C,H,W)
-            # pass each stage
+            x = self.downsamples[i](x)
             x = self.stages[i](x)
-        # global pool
+        # Global average pooling
         x = x.mean([-2, -1])            # N, C
         x = self.final_norm(x)
         return x
@@ -164,109 +198,118 @@ class MiniConvNeXt(nn.Module):
         x = self.dropout(x)
         x = self.head(x)
         return x
-    
+
+
+# Setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 if not torch.cuda.is_available():
-    print("Warning CUDA not Found. Using CPU")    
-model = MiniConvNeXt(in_chans=1, num_classes=2,
-                 depths=(1,1,2,2), dims=(32,64,128,256)).to(device)
-    
-    
-EPOCHS = 200
-    
-criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
-#optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=1e-4)  # AdamW is preferable
-# One-cycle LR often helps for from-scratch training:
+    print("Warning: CUDA not found. Using CPU")
+else:
+    print(f"Using device: {device}")
 
+model = MiniConvNeXt(
+    in_chans=1, 
+    num_classes=2,
+    depths=(2, 2, 6, 2), 
+    dims=(48, 96, 192, 384),
+    drop_path_rate=0.1
+).to(device)
+
+# Count parameters
+total_params = sum(p.numel() for p in model.parameters())
+print(f"Total parameters: {total_params:,}")
+
+EPOCHS = 300
+
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.AdamW(model.parameters(), lr=4e-3, weight_decay=5e-2)
 
 from torch.optim.lr_scheduler import OneCycleLR
-#scheduler = OneCycleLR(optimizer, max_lr=3e-3, steps_per_epoch=len(train_loader), epochs=EPOCHS)
+scheduler = OneCycleLR(
+    optimizer, 
+    max_lr=4e-3,
+    steps_per_epoch=len(train_loader),
+    epochs=EPOCHS,
+    pct_start=0.05  # 5% warmup
+)
 
-optimizer = optim.AdamW(model.parameters(), lr=2e-3, weight_decay=1e-4)
-scheduler = OneCycleLR(optimizer, max_lr=5e-3,
-                       steps_per_epoch=len(train_loader),
-                       epochs=EPOCHS)
+# Enable mixed precision training
+scaler = torch.amp.GradScaler(enabled=True)
 
-scaler = torch.amp.GradScaler(enabled=False)
-
-print("Testing higher decay: 5e-4")
-print("Testing smoothing criterion")
-print("\n Beginning Training:")
+# Training loop
+print("\nBeginning Training:")
 start_time = time.time()
+best_accuracy = 0.0
 
 for epoch in range(EPOCHS):
     epoch_start = time.time()
     model.train()
     running_loss = 0.0
     image_count = 0
-    prev_100_images_start = time.time()
+    prev_checkpoint = time.time()
 
     for images, labels in train_loader:
         images, labels = images.to(device), labels.to(device)
         optimizer.zero_grad()
 
-        #  Forward pass in mixed precision
-        #with torch.amp.autocast(device_type="cuda"):
-        outputs = model(images)
-        loss = criterion(outputs, labels)
+        # Forward pass with mixed precision
+        with torch.amp.autocast(device_type="cuda"):
+            outputs = model(images)
+            loss = criterion(outputs, labels)
 
-        #  Scaled backward pass
+        # Scaled backward pass
         scaler.scale(loss).backward()
         
         if not torch.isfinite(loss):
-            print("Non-finite loss, stopping training")
+            print("Non-finite loss detected, stopping training")
             break
 
-        #  Unscale + clip gradients
+        # Unscale and clip gradients
         scaler.unscale_(optimizer)
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0)
 
-        #  Step with scaler
+        # Optimizer step with scaler
         scaler.step(optimizer)
         scaler.update()
 
-        #  Step LR scheduler once per batch
+        # Step LR scheduler
         scheduler.step()
 
         running_loss += loss.item()
         image_count += images.size(0)
 
-        # Occasional progress report
-        #if image_count % 500 == 0:
-        #    print(f"Trained {image_count} images, Time: {time.time() - prev_100_images_start:.1f}s")
-        #    prev_100_images_start = time.time()
+        # Progress report
+        if image_count % 5000 == 0:
+            print(f"  Trained {image_count} images, Time: {time.time() - prev_checkpoint:.1f}s")
+            prev_checkpoint = time.time()
 
     avg_loss = running_loss / len(train_loader)
+
+    # Evaluation
     model.eval()
     correct, total = 0, 0
 
     with torch.no_grad():
         for images, labels in test_loader:
             images, labels = images.to(device), labels.to(device)
-            outputs = model(images)
+            with torch.amp.autocast(device_type="cuda"):
+                outputs = model(images)
             _, preds = torch.max(outputs, 1)
             total += labels.size(0)
             correct += (preds == labels).sum().item()
 
+    accuracy = 100 * correct / total
+    
+    # Track best model
+    if accuracy > best_accuracy:
+        best_accuracy = accuracy
+        print(f"  *** New best accuracy: {best_accuracy:.2f}% ***")
 
-    print(f"Epoch {epoch+1:02d}/{EPOCHS} | Loss: {avg_loss:.4f} | Test Accuracy: {100 * correct / total:.2f}% | Time: {time.time()-epoch_start:.1f}s")
+    current_lr = optimizer.param_groups[0]['lr']
+    print(f"Epoch {epoch+1:03d}/{EPOCHS} | Loss: {avg_loss:.4f} | "
+          f"Test Acc: {accuracy:.2f}% | LR: {current_lr:.6f} | "
+          f"Time: {time.time()-epoch_start:.1f}s")
 
-
-print(f"Finished Training on {image_count} images in {time.time() - start_time} seconds")
-
-print("")
-model.eval()
-correct, total = 0, 0
-start_test_time = time.time()
-print("Beginning Testing:")
-with torch.no_grad():
-    for images, labels in test_loader:
-        images, labels = images.to(device), labels.to(device)
-        outputs = model(images)
-        _, preds = torch.max(outputs, 1)
-        total += labels.size(0)
-        correct += (preds == labels).sum().item()
-
-print(f"Test Accuracy: {100 * correct / total:.2f}%")
-print(f"Finished Testing in {time.time() - start_test_time} seconds")
+print(f"\nFinished Training in {time.time() - start_time:.1f} seconds")
+print(f"Best Test Accuracy: {best_accuracy:.2f}%")
