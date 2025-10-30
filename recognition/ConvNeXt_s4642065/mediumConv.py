@@ -76,8 +76,8 @@ train_dataset = datasets.ImageFolder(root="/home/groups/comp3710/ADNI/AD_NC/trai
 test_dataset  = datasets.ImageFolder(root="/home/groups/comp3710/ADNI/AD_NC/test",  transform=test_transform)
 
 # Dataloaders
-train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=1)
-test_loader  = DataLoader(test_dataset, batch_size=16, shuffle=False, num_workers=1)
+train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=1)
+test_loader  = DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=1)
 
 print(f"Train length: {len(train_dataset)}, Test length: {len(test_dataset)}")
 print(train_dataset[0][0].mean(), train_dataset[0][0].std())
@@ -138,7 +138,7 @@ class MiniConvNeXt(nn.Module):
         super().__init__()
         assert len(depths) == 4 and len(dims) == 4
 
-        self.dropout = nn.Dropout(p=0.3)
+        self.dropout = nn.Dropout(p=0.2)
         
         # Stem
         self.downsamples = nn.ModuleList()
@@ -213,8 +213,11 @@ model = MiniConvNeXt(
     num_classes=2,
     depths=(2, 2, 6, 2), 
     dims=(48, 96, 192, 384),
-    drop_path_rate=0.1
+    drop_path_rate=0.05
 ).to(device)
+
+# decreased dropout and path dreop to 0.2 / 0.05
+# changed to Cosine Annealing LR
 
 # Count parameters
 total_params = sum(p.numel() for p in model.parameters())
@@ -222,17 +225,20 @@ print(f"Total parameters: {total_params:,}")
 
 EPOCHS = 300
 
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.AdamW(model.parameters(), lr=4e-3, weight_decay=5e-2)
+optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-2)
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS, eta_min=1e-5)
+criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
 
-from torch.optim.lr_scheduler import OneCycleLR
-scheduler = OneCycleLR(
-    optimizer, 
-    max_lr=4e-3,
-    steps_per_epoch=len(train_loader),
-    epochs=EPOCHS,
-    pct_start=0.05  # 5% warmup
-)
+
+
+
+#scheduler = OneCycleLR(
+#    optimizer, 
+#    max_lr=4e-3,
+#    steps_per_epoch=len(train_loader),
+#    epochs=EPOCHS,
+#    pct_start=0.05  # 5% warmup
+#)
 
 # Enable mixed precision training
 scaler = torch.amp.GradScaler(enabled=True)
@@ -274,7 +280,7 @@ for epoch in range(EPOCHS):
         scaler.update()
 
         # Step LR scheduler
-        scheduler.step()
+        #scheduler.step()
 
         running_loss += loss.item()
         image_count += images.size(0)
@@ -283,6 +289,9 @@ for epoch in range(EPOCHS):
         if image_count % 5000 == 0:
             print(f"  Trained {image_count} images, Time: {time.time() - prev_checkpoint:.1f}s")
             prev_checkpoint = time.time()
+            
+        scheduler.step()    
+        
 
     avg_loss = running_loss / len(train_loader)
 
