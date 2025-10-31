@@ -1,0 +1,186 @@
+# Various import statements
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torchvision
+import torchvision.transforms as transforms
+import time as time
+from torchvision.datasets import ImageFolder
+from torch.utils.data import DataLoader
+from torch.utils.data import Dataset
+from PIL import Image
+import os
+import torch
+import torchvision.transforms as transforms
+import torch.nn.functional as F
+import numpy as np
+from torchvision import datasets, transforms
+from torch.utils.data import DataLoader
+import copy
+from timm.layers import trunc_normal_, DropPath
+
+
+YOUR_MEAN = 0.1156
+YOUR_STD = 0.2198
+
+
+train_transform = transforms.Compose([
+    transforms.Grayscale(num_output_channels=1),
+    transforms.ColorJitter(brightness=0.03, contrast=0.03),
+    transforms.Resize((224,224)),
+    transforms.RandomHorizontalFlip(p=0.2),
+    transforms.RandomRotation(3),
+    transforms.RandomAffine(degrees=0, translate=(0.01,0.01), scale=(0.99,1.01)),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[YOUR_MEAN], std=[YOUR_STD])
+])
+
+test_transform = transforms.Compose([
+    transforms.Grayscale(num_output_channels=1),
+    transforms.Resize((224,224)),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[YOUR_MEAN], std=[YOUR_STD])
+])
+
+
+# load data
+train_dataset = datasets.ImageFolder(root="data/ADNI/AD_NC/train", transform=train_transform)
+test_dataset  = datasets.ImageFolder(root="data/ADNI/AD_NC/test",  transform=test_transform)
+
+# Dataloaders
+train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=1)
+test_loader  = DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=1)
+
+print(f"Train length: {len(train_dataset)}, Test length: {len(test_dataset)}")
+print(train_dataset[0][0].mean(), train_dataset[0][0].std())
+
+
+class DropPath(nn.Module):
+    """Stochastic Depth (Drop Path) for regularization"""
+    def __init__(self, drop_prob=0.0):
+        super().__init__()
+        self.drop_prob = drop_prob
+
+    def forward(self, x):
+        if self.drop_prob == 0. or not self.training:
+            return x
+        keep_prob = 1 - self.drop_prob
+        shape = (x.shape[0],) + (1,) * (x.ndim - 1)
+        random_tensor = keep_prob + torch.rand(shape, dtype=x.dtype, device=x.device)
+        random_tensor.floor_()
+        output = x.div(keep_prob) * random_tensor
+        return output
+
+
+class SmallBlock(nn.Module):
+    """ConvNeXt block with 5x5 depthwise conv and stochastic depth"""
+    def __init__(self, dim, layer_scale_init_value=1e-5, drop_path=0.0):
+        super().__init__()
+        # 5x5 depthwise convolution
+        self.dwconv = nn.Conv2d(dim, dim, kernel_size=5, padding=2, groups=dim)
+        self.norm = nn.LayerNorm(dim, eps=1e-6)
+        self.pw1 = nn.Linear(dim, 4*dim)
+        self.act = nn.GELU()
+        self.pw2 = nn.Linear(4*dim, dim)
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+
+        if layer_scale_init_value > 0:
+            self.gamma = nn.Parameter(layer_scale_init_value * torch.ones((dim)), requires_grad=True)
+        else:
+            self.gamma = None
+
+    def forward(self, x):
+        shortcut = x
+        x = self.dwconv(x)                          # N,C,H,W
+        x = x.permute(0, 2, 3, 1)                   # N,H,W,C
+        x = self.norm(x)
+        x = self.pw1(x)
+        x = self.act(x)
+        x = self.pw2(x)
+        if self.gamma is not None:
+            x = self.gamma * x
+        x = x.permute(0, 3, 1, 2)                   # N,C,H,W
+        return shortcut + self.drop_path(x)
+
+
+class LayerNorm2d(nn.Module):
+    def __init__(self, num_channels, eps=1e-6):
+        super().__init__()
+        self.norm = nn.LayerNorm(num_channels, eps=eps)
+    def forward(self, x):
+        # N, C, H, W → N, H, W, C → N, C, H, W
+        x = x.permute(0, 2, 3, 1)
+        x = self.norm(x)
+        return x.permute(0, 3, 1, 2)
+
+
+class MiniConvNeXt(nn.Module):
+    def __init__(self, in_chans=1, num_classes=2,
+                 depths=(2, 2, 6, 2), dims=(48, 96, 192, 384),
+                 layer_scale_init_value=1e-5, drop_path_rate=0.1):
+        super().__init__()
+        assert len(depths) == 4 and len(dims) == 4
+
+        self.dropout = nn.Dropout(p=0.2)
+
+        # Stem
+        self.downsamples = nn.ModuleList()
+
+        stem = nn.Sequential(
+            nn.Conv2d(in_chans, dims[0], kernel_size=4, stride=4),
+            LayerNorm2d(dims[0])
+        )
+        self.downsamples.append(stem)
+
+        # Downsampling layers between stages
+        for i in range(3):
+            self.downsamples.append(
+                nn.Sequential(
+                    nn.GroupNorm(1, dims[i]),  # acts like LayerNorm for channels_first
+                    nn.Conv2d(dims[i], dims[i+1], kernel_size=2, stride=2)
+                )
+            )
+
+        # Calculate stochastic depth rates (linearly increasing)
+        dp_rates = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
+
+        # Build stages with progressive drop path
+        self.stages = nn.ModuleList()
+        cur = 0
+        for i in range(4):
+            blocks = []
+            for _ in range(depths[i]):
+                blocks.append(SmallBlock(dims[i],
+                                        layer_scale_init_value=layer_scale_init_value,
+                                        drop_path=dp_rates[cur]))
+                cur += 1
+            self.stages.append(nn.Sequential(*blocks))
+
+        # Final norm and head
+        self.final_norm = nn.LayerNorm(dims[-1], eps=1e-6)
+        self.head = nn.Linear(dims[-1], num_classes)
+
+        self._init_weights()
+
+    def _init_weights(self):
+        for m in self.modules():
+            if isinstance(m, (nn.Conv2d, nn.Linear)):
+                trunc_normal_(m.weight, std=.02)
+                if getattr(m, "bias", None) is not None:
+                    nn.init.constant_(m.bias, 0)
+
+    def forward_features(self, x):
+        # x: N, C, H, W  (C=1)
+        for i in range(4):
+            x = self.downsamples[i](x)
+            x = self.stages[i](x)
+        # Global average pooling
+        x = x.mean([-2, -1])            # N, C
+        x = self.final_norm(x)
+        return x
+
+    def forward(self, x):
+        x = self.forward_features(x)
+        x = self.dropout(x)
+        x = self.head(x)
+        return x
