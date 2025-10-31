@@ -18,7 +18,10 @@ class ModelParameters():
         base_dir = r"C:\Users\acade\Documents\UNI\Sem 2 2025\COMP3710\ADNI"
         self.data_file_path = os.path.join(base_dir, "AD_NC")
     
-    
+        # C:/Users/acade/Documents/UNI/Sem 2 2025/COMP3710/ADNI/AD_NC
+        # C:/Users/acade/Documents/UNI/Sem 2 2025/COMP3710/ADNI/AD_NC
+        
+        # C:/Users/acade/Documents/UNI/Sem 2 2025/COMP3710/PatternAnalysis-2025/recognition/ConvNeXt_s4642065/ConvNeXt_best.pth
         # Data collection
         self.training_losses            = []
         self.estimated_test_losses      = []

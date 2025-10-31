@@ -89,26 +89,76 @@ Models were trained over the ADNI training set using the training loop ......
 * training process.
 * explain training loop
 
-**Testing**
-* model size
+### Testing
+**Model Size**
 
-Of primary importance in creating the model was the seclection of the model size, how manny ConvNeXt blocks would be utilised in each layer. The model proposed in tyhe original paper is (3,3,27,3), which is a very large model with ___ parameters. As their model was trained on the ImageNet-1k data set tuning such a large number of parameters is possible given that contains 1,281,167 training images. However for our much smaller training set, at just 21,520 images or 1.68% of the size, a much smaller model would be required. Indeed initial testing using a full ConvNeXt model showed an inability to learn, by failing to decrease loss below ~0.608 or accuracy above 50.4%. Initally, trials were conducted on a tiny ConvNeXt setup, of just (1, 1, 2, 2). Repeated trials were able too perform suprisingly well 
+Of primary importance in creating the model was the seclection of the model size, how manny ConvNeXt blocks would be utilised in each layer. The model proposed in tyhe original paper is (3,3,27,3), which is a very large model with ___ parameters. As their model was trained on the ImageNet-1k data set tuning such a large number of parameters is possible given that contains 1,281,167 training images. However for our much smaller training set, at just 21,520 images or 1.68% of the size, a much smaller model would be required. Indeed initial testing using a full ConvNeXt model showed an inability to learn, by failing to decrease loss below ~0.608 or accuracy above 50.4%. 
+
+**Hyperparameter Selection**
+
+Trials were conducted to determine ideal learning rate, as shown below. Ideal rate using ?one-cycle? was found as 0.7e-3. 
+
+PLOT
+
+Further testing was conducted on weight decay asnd drop path rates, concluding ideal values at 0.75e-3 and 0.1 respectively.
+
+PLOTS
+
+Additional choices which were found to be most optimal include:
+* batch_size 128:
+* Epochs
+* Optimiser
+* Schdule
+* loss criterion
+
+### Usage
+
+**``train.py``**
+
+No arguments, training parameters supplied by ``utils.py``
+
+Example:
+```python
+train.py
+```
+
+---
 
 
-* scheduler selection
-* hyperparamter selection
-* learning rate
-* drop rate
-* note on epoch counts
-* batch size?
-* weight decay
+**``predict.py``**: 
+```python
+python predict.py [-h | --help]
+                  [-e | --evaluation]
+                  [-b BATCH_SIZE | --batch_size BATCH_SIZE]
+                  model path
+```
+Non-Optional Arguments
+* model: path to the trained mode .pth file, file will ahve been created by ``train.py``
+* path: path to either a single image (for individual inference) or a data set director (for full set evaluation). Diretoy should contain ``train/``, ``val/`` and ``test/`` subfolders.
+
+Example: 
+```python
+python predict.py ./outputs/ConvNeXt_best.pth ./data/ADNI/AD_NC
+```
+
+Optional Arguments
+* -e, --evaluation: enables evaluation mode, model is run on entire test dataset, and returns test accuracy, loss and confusion matrix
+* -b, --batch_size: Specifies batch size during data set evaluation (default: 64). Argument is ignored in single-image mode
+
+Example:
+```python
+python predict.py ./outputs/ConvNeXt_best.pth ./data/ADNI/AD_NC -e -b 128
+```
+
+
+
+
 
 RESULTS
 * show higest results
 * show confusion matrix
 * limitations
 
-Usage
 
 
 

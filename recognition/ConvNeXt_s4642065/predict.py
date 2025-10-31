@@ -15,7 +15,7 @@ from PIL import Image
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 
-from modules import MiniConvNeXt
+from modules import ConvNeXt
 from dataset import ADNIDataLoader
 from utils import ModelParameters
 
@@ -61,6 +61,11 @@ def evaluate_model(model, dataloader, criterion, device):
 
     print(f"Accuracy: {accuracy:.2f}% | Avg Loss: {avg_loss:.4f}")
     print("Confusion Matrix:\n", conf_matrix)
+
+    os.makedirs("outputs", exist_ok=True)
+    plt.savefig("outputs/confusion_matrix.png", bbox_inches="tight")
+
+
 
     # Optional: visualize confusion matrix
     disp = ConfusionMatrixDisplay(conf_matrix)
@@ -124,7 +129,7 @@ if __name__ == "__main__":
 
     # Initialize params and model
     params = ModelParameters()
-    model = MiniConvNeXt(
+    model = ConvNeXt(
         in_chans=1,
         num_classes=2,
         depths=(2, 2, 6, 2),
@@ -135,9 +140,9 @@ if __name__ == "__main__":
     # Load trained weights
     try:
         model.load_state_dict(torch.load(args.model, map_location=device))
-        print(f"✅ Loaded model from {args.model}")
+        print(f" Loaded model from {args.model}")
     except Exception as e:
-        print(f"❌ Error loading model: {e}")
+        print(f" Error loading model: {e}")
         exit(1)
 
     # ------------------------------------------------------------------
@@ -145,7 +150,7 @@ if __name__ == "__main__":
         print("Running dataset evaluation...")
 
         # Load test dataset
-        data = ADNIDataLoader(batch_size=args.batch_size, data_dir=args.path, compute_norm=False)
+        data = ADNIDataLoader(batch_size=args.batch_size, data_dir=args.path, compute_norm=True)
         _, _, test_loader = data.load()  # reuse your load() split
 
         criterion = torch.nn.CrossEntropyLoss(label_smoothing=0.1).to(device)
