@@ -48,7 +48,7 @@ def setup_training_env():
         pct_start=0.05
     )
 
-    return model, train_loader, val_loader, criterion, optimizer, scheduler, device, params
+    return model, train_loader, val_loader, test_loader, criterion, optimizer, scheduler, device, params
 
 
 def train_model(model, train_loader, val_loader, test_loader,  
@@ -211,7 +211,7 @@ def plot_training_curves(params):
     plt.tight_layout()
     plt.savefig("outputs/training_curves.png", bbox_inches="tight", dpi=300)
     plt.close()
-    print("✅ Saved training curves to outputs/training_curves.png")
+    print("Saved training curves to outputs/training_curves.png")
 
     
     

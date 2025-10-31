@@ -12,10 +12,11 @@ class ModelParameters():
         self.batch_size     = 128
 
         self.depth          = 12         # Number of global filter layers to use in the network
-        self.epochs         = 200
+        self.epochs         = 4
         
         
-        base_dir = r"C:\Users\acade\Documents\UNI\Sem 2 2025\COMP3710\ADNI"
+        #base_dir = r"C:\Users\acade\Documents\UNI\Sem 2 2025\COMP3710\ADNI"
+        base_dir = r"/home/groups/comp3710/ADNI"
         self.data_file_path = os.path.join(base_dir, "AD_NC")
     
         # C:/Users/acade/Documents/UNI/Sem 2 2025/COMP3710/ADNI/AD_NC

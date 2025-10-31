@@ -12,7 +12,7 @@ class ADNIDataLoader:
     """
 
     def __init__(self, data_dir="data/ADNI/AD_NC", batch_size=128, num_workers=2,
-                 val_split=0.2, compute_norm=True):
+                 val_split=0.1, compute_norm=True):
         """
         Initialize the ADNI data loader.
 

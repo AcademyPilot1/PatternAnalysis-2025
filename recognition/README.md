@@ -46,7 +46,7 @@ Project contain the following files with purpose explained:
 
 **Dataset preperation**
 
-The data set to be utilised is the ADNI dataset containing approximately 30,000 images with a preset train/test splot of 21520 to 9000 or ~70% - 30% split. This test training split was maintained as, although it is a considerable testing percentage, it should allow for a reliable determination of model accuracy. A variety of preprocessing methods were applied ot the training set to aid classification. 
+The data set to be utilised is the ADNI dataset containing approximately 30,000 images with a preset train/test splot of 21520 to 9000 or ~70% - 30% split. This test training split was maintained as, although it is a considerable testing percentage, it should allow for a reliable determination of model accuracy. A variety of preprocessing methods were applied to the training set to aid classification. 
 
 ```python
 train_transform = transforms.Compose([
@@ -61,7 +61,33 @@ train_transform = transforms.Compose([
     ])
 ```
 
-EXPLAIN ABOVE
+The above data augmentation was applied to training data. Augmentations included a resize to $240\times 240$ square dimensions for ease of processing. All images were normalised according to calculated average and standard deviation of the training set. Various augmentations were applied including, random flipping, rotation, addine translations and scales and colour jitter. This was necessary to prevent model overfitting by introducing more variety into the training data set, was was shown in improve model accuracy with sufficient epochs. 
+
+Data is provided to ```dataset.py``` as a path to the data folder. The model requires the data to be pre-seperated between train and test classes, and to be organised using the following structure.  
+
+```python
+ADNI/
+├── train/
+│   ├── AD
+│   │   ├── trainAD_1.jpeg
+│   │   ├── trainAD_2.jpeg
+│   │   └── ...
+│   ├── NC
+│   │   ├── trainNC_1.jpeg
+│   │   ├── trainNC_2.jpeg
+│   │   └── ...
+├── test/
+│   ├── AD
+│   │   ├── testAD_1.jpeg
+│   │   ├── testAD_2.jpeg
+│   │   └── ...
+│   ├── NC
+│   │   ├── testNC_1.jpeg
+│   │   ├── testNC_2.jpeg
+│   │   └── ...
+```
+
+
 
 
 
@@ -84,10 +110,9 @@ Data utilised
 
 **Training**
 
-Models were trained over the ADNI training set using the training loop ......
+Models were trained over the ADNI trainind set.  A validation split of 10% was made to the training set. The split of 10% was deemed sufficiently large to produce representative validation accuracies without excessively diminishing the number of images the model could learn from.
 
-* training process.
-* explain training loop
+
 
 ### Testing
 **Model Size**
@@ -96,20 +121,24 @@ Of primary importance in creating the model was the seclection of the model size
 
 **Hyperparameter Selection**
 
-Trials were conducted to determine ideal learning rate, as shown below. Ideal rate using ?one-cycle? was found as 0.7e-3. 
+Trials were conducted to determine ideal hyperparameters. Shown below are example trials results, testing models with varying parameters of 20 epochs. 
 
-PLOT
+<p align="center">
+  <img src="./assests/learning_rate_trials.png" alt="First" width="45%"/>
+  <img src="./assests/drop_rate_trials.png" alt="Second" width="45%"/>
+</p>
 
-Further testing was conducted on weight decay asnd drop path rates, concluding ideal values at 0.75e-3 and 0.1 respectively.
+These tests found the ideal learning rate at $0.75\times 10^{-3}$ and ideal drop path rate at $0.1$. Further testing was conducted on various other parameters. All selected hyperparamters are listed below.
 
-PLOTS
-
-Additional choices which were found to be most optimal include:
-* batch_size 128:
-* Epochs
-* Optimiser
-* Schdule
-* loss criterion
+Hyperparamters
+* **Batch size: 128** Number of images model processes before propagatting weights
+* **Learning Rate: 0.75e-3** Determines how much to adjust model weights with respect to loss
+* **Drop Path Rate: 0.1** Controls probability of dropping blocks during training
+* **Model Depth: (2,2,6,2)** Number of ConvNeXt blocks in each layer
+* **Epochs: 300** Number of times model is processes entire training set
+* **Optimiser: AdamW** Optimisation algorithm to update model weights
+* **Scheduler: OneCycleLR** Alters the learning rate over training epochs
+* **Loss Criterion: CrossEntropyLoss** Determines variance between predicted and true classifications
 
 ### Usage
 
