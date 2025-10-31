@@ -47,8 +47,8 @@ YOUR_STD = 0.2198
 # new drop out in model forward at 0.2
 
 
-YOUR_MEAN = 0.1156
-YOUR_STD = 0.2198
+YOUR_MEAN = 0.11559104174375534
+YOUR_STD = 0.21978603303432465
 
 
 train_transform = transforms.Compose([

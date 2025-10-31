@@ -5,9 +5,9 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import OneCycleLR
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
-from modules import MiniConvNeXt
+from modules import ConvNeXt
 from dataset import ADNIDataLoader
 from utils import ModelParameters
 
@@ -22,11 +22,11 @@ def setup_training_env():
     print(f"Using device: {device}")
 
     # Data
-    data = ADNIDataLoader(batch_size=params.batch_size, data_dir="data/ADNI/AD_NC")
-    train_loader, val_loader = data.load()
+    data = ADNIDataLoader(batch_size=params.batch_size, data_dir=params.data_file_path)
+    train_loader, val_loader, test_loader = data.load()
 
     # Model
-    model = MiniConvNeXt(
+    model = ConvNeXt(
         in_chans=1,
         num_classes=2,
         depths=(2, 2, 6, 2),
@@ -107,7 +107,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
     # Final save
     save_model(model, params, best=False)
     save_metrics(params)
-    plot_training_curves(params)
+    #plot_training_curves(params)
 
     
 def evaluate(model, dataloader, criterion, device):
@@ -135,9 +135,9 @@ def save_model(model, params, best=False):
     """Save model weights to .pth file."""
     os.makedirs("outputs", exist_ok=True)
     tag = "best" if best else "final"
-    path = f"outputs/MiniConvNeXt_{tag}.pth"
+    path = f"outputs/ConvNeXt_{tag}.pth"
     torch.save(model.state_dict(), path)
-    print(f"✅ Saved {tag} model to {path}")
+    print(f" Saved {tag} model to {path}")
     
     
 def save_metrics(params):
@@ -153,7 +153,7 @@ def save_metrics(params):
         writer = csv.writer(f)
         writer.writerow(["val_accuracy"] + params.estimated_test_accuracy)
 
-    print("📊 Saved metrics to outputs/")    
+    print(" Saved metrics to outputs/")    
     
     
     
@@ -180,7 +180,7 @@ def plot_training_curves(params):
     os.makedirs("outputs", exist_ok=True)
     plt.savefig("outputs/training_curves.png", bbox_inches="tight")
     plt.close()
-    print("📈 Saved training curves to outputs/training_curves.png")
+    print(" Saved training curves to outputs/training_curves.png")
 
     
     

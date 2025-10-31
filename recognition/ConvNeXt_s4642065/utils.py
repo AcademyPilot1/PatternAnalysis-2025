@@ -1,6 +1,6 @@
 
-
-class ModelParamters():
+import os
+class ModelParameters():
     """
     Class for storing key parameters
     """
@@ -13,6 +13,10 @@ class ModelParamters():
 
         self.depth          = 12         # Number of global filter layers to use in the network
         self.epochs         = 200
+        
+        
+        base_dir = r"C:\Users\acade\Documents\UNI\Sem 2 2025\COMP3710\ADNI"
+        self.data_file_path = os.path.join(base_dir, "AD_NC")
     
     
         # Data collection

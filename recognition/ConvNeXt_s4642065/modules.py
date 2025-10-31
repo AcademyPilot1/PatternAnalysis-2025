@@ -25,73 +25,73 @@ from torch.utils.data import DataLoader
 from timm.layers import trunc_normal_, DropPath
 
 # Temporary transform to just convert images to tensor (no normalization yet)
-temp_transform = transforms.Compose([
-    transforms.Grayscale(num_output_channels=1),
-    transforms.Resize((224, 224)),
-    transforms.ToTensor()
-])
-
-train_dataset = datasets.ImageFolder(
-    root="/home/groups/comp3710/ADNI/AD_NC/train",
-    transform=temp_transform
-)
-
-train_loader = DataLoader(train_dataset, batch_size=32, shuffle=False, num_workers=2)
-
-# Compute mean and std
-mean = 0.0
-std = 0.0
-total_images = 0
-
-for images, _ in train_loader:
-    # images shape: (batch_size, 3, H, W)
-    batch_samples = images.size(0)
-    images = images.view(batch_samples, images.size(1), -1)  # flatten H*W
-    mean += images.mean(2).sum(0)
-    std += images.std(2).sum(0)
-    total_images += batch_samples
-
-mean /= total_images
-std /= total_images
-
-print("Mean:", mean)
-print("Std:", std)
-
-
-# Define transforms (resize, normalize, etc.)
-train_transform = transforms.Compose([
-    transforms.Grayscale(num_output_channels=3),  # Convert 1 channel → 3
-    transforms.Resize((224, 224)),                # ConvNeXt default input size
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
-])
-
-train_transform = transforms.Compose([
-    transforms.Grayscale(num_output_channels=3),
-    transforms.Resize((224, 224)),
-    transforms.RandomHorizontalFlip(p=0.5),
-    transforms.RandomRotation(degrees=10),
-    transforms.ColorJitter(brightness=0.2, contrast=0.2),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
-])
-
-test_transform = transforms.Compose([
-    transforms.Grayscale(num_output_channels=3),
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
-])
-
-# Datasets
-train_dataset = datasets.ImageFolder(root="/home/groups/comp3710/ADNI/AD_NC/train", transform=train_transform)
-test_dataset  = datasets.ImageFolder(root="/home/groups/comp3710/ADNI/AD_NC/test",  transform=test_transform)
-
-# Dataloaders
-train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=1)
-test_loader  = DataLoader(test_dataset, batch_size=16, shuffle=False, num_workers=1)
-
-print(f"Train length: {len(train_dataset)}, Test length: {len(test_dataset)}")
+#temp_transform = transforms.Compose([
+#    transforms.Grayscale(num_output_channels=1),
+#    transforms.Resize((224, 224)),
+#    transforms.ToTensor()
+#])
+#
+#train_dataset = datasets.ImageFolder(
+#    root="/home/groups/comp3710/ADNI/AD_NC/train",
+#    transform=temp_transform
+#)
+#
+#train_loader = DataLoader(train_dataset, batch_size=32, shuffle=False, num_workers=2)
+#
+## Compute mean and std
+#mean = 0.0
+#std = 0.0
+#total_images = 0
+#
+#for images, _ in train_loader:
+#    # images shape: (batch_size, 3, H, W)
+#    batch_samples = images.size(0)
+#    images = images.view(batch_samples, images.size(1), -1)  # flatten H*W
+#    mean += images.mean(2).sum(0)
+#    std += images.std(2).sum(0)
+#    total_images += batch_samples
+#
+#mean /= total_images
+#std /= total_images
+#
+#print("Mean:", mean)
+#print("Std:", std)
+#
+#
+## Define transforms (resize, normalize, etc.)
+#train_transform = transforms.Compose([
+#    transforms.Grayscale(num_output_channels=3),  # Convert 1 channel → 3
+#    transforms.Resize((224, 224)),                # ConvNeXt default input size
+#    transforms.ToTensor(),
+#    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+#])
+#
+#train_transform = transforms.Compose([
+#    transforms.Grayscale(num_output_channels=3),
+#    transforms.Resize((224, 224)),
+#    transforms.RandomHorizontalFlip(p=0.5),
+#    transforms.RandomRotation(degrees=10),
+#    transforms.ColorJitter(brightness=0.2, contrast=0.2),
+#    transforms.ToTensor(),
+#    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+#])
+#
+#test_transform = transforms.Compose([
+#    transforms.Grayscale(num_output_channels=3),
+#    transforms.Resize((224, 224)),
+#    transforms.ToTensor(),
+#    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+#])
+#
+## Datasets
+#train_dataset = datasets.ImageFolder(root="/home/groups/comp3710/ADNI/AD_NC/train", transform=train_transform)
+#test_dataset  = datasets.ImageFolder(root="/home/groups/comp3710/ADNI/AD_NC/test",  transform=test_transform)
+#
+## Dataloaders
+#train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=1)
+#test_loader  = DataLoader(test_dataset, batch_size=16, shuffle=False, num_workers=1)
+#
+#print(f"Train length: {len(train_dataset)}, Test length: {len(test_dataset)}")
 
 class Block(nn.Module):
     r""" ConvNeXt Block. There are two equivalent implementations:
@@ -223,79 +223,79 @@ class LayerNorm(nn.Module):
             x = self.weight[:, None, None] * x + self.bias[:, None, None]
             return x
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-if not torch.cuda.is_available():
-    print("Warning CUDA not Found. Using CPU")
-
-model = ConvNeXt(in_chans=3, num_classes=2).to(device)
-
-
-
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=1e-4)
-scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
-
-start_time = time.time()
-print("")
-print("Begining Training:")
-for epoch in range(1):
-
-    prev_epoch_start_time = time.time()
-    model.train()
-    running_loss = 0.0
-
-    image_count = 0
-    prev_100_images_start_time = time.time()
-    for images, labels in train_loader:
-        images, labels = images.to(device), labels.to(device)
-        
-        optimizer.zero_grad()
-        outputs = model(images)
-        loss = criterion(outputs, labels)
-        loss.backward()
-        optimizer.step()
-        
-        running_loss += loss.item()
-
-        if image_count % 500 == 0:
-          print(f"Trained: {image_count}, Time Elapsed: {time.time() - prev_100_images_start_time}")
-          prev_100_images_start_time = time.time()
-        
-
-        image_count += images.size(0)
-        #scheduler.step()
-    
-    print(f"Epoch {epoch+1}, Loss: {running_loss/len(train_loader):.4f}, Time: {time.time()-prev_epoch_start_time}")
-    
-print(f"Finished Training on {image_count} images in {time.time() - start_time} seconds")
-print("")
-model.eval()
-correct, total = 0, 0
-start_test_time = time.time()
-print("Beginning Testing:")
-with torch.no_grad():
-    for images, labels in test_loader:
-        images, labels = images.to(device), labels.to(device)
-        outputs = model(images)
-        _, preds = torch.max(outputs, 1)
-        total += labels.size(0)
-        correct += (preds == labels).sum().item()
-
-print(f"Test Accuracy: {100 * correct / total:.2f}%")
-print(f"Finished Testing in {time.time() - start_test_time} seconds")
-
-
-
-
-# RESULTS
-# Epochs:20, Final loss: 0.0099, Accuracy: 63.78 (0.5 normalisation) (32 batch size) (epoch time 125s)
-# ok so next one was horrible, 49.18 with scheduler, 16 batch, custom transformer
-#train_transform = transforms.Compose([
-#    transforms.Grayscale(num_output_channels=3),
-#    transforms.Resize((224, 224)),
-#    transforms.RandomHorizontalFlip(p=0.5),
-#    transforms.RandomRotation(degrees=10),
+#device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#
+#if not torch.cuda.is_available():
+#    print("Warning CUDA not Found. Using CPU")
+#
+#model = ConvNeXt(in_chans=3, num_classes=2).to(device)
+#
+#
+#
+#criterion = nn.CrossEntropyLoss()
+#optimizer = optim.Adam(model.parameters(), lr=1e-4)
+#scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
+#
+#start_time = time.time()
+#print("")
+#print("Begining Training:")
+#for epoch in range(1):
+#
+#    prev_epoch_start_time = time.time()
+#    model.train()
+#    running_loss = 0.0
+#
+#    image_count = 0
+#    prev_100_images_start_time = time.time()
+#    for images, labels in train_loader:
+#        images, labels = images.to(device), labels.to(device)
+#        
+#        optimizer.zero_grad()
+#        outputs = model(images)
+#        loss = criterion(outputs, labels)
+#        loss.backward()
+#        optimizer.step()
+#        
+#        running_loss += loss.item()
+#
+#        if image_count % 500 == 0:
+#          print(f"Trained: {image_count}, Time Elapsed: {time.time() - prev_100_images_start_time}")
+#          prev_100_images_start_time = time.time()
+#        
+#
+#        image_count += images.size(0)
+#        #scheduler.step()
+#    
+#    print(f"Epoch {epoch+1}, Loss: {running_loss/len(train_loader):.4f}, Time: {time.time()-prev_epoch_start_time}")
+#    
+#print(f"Finished Training on {image_count} images in {time.time() - start_time} seconds")
+#print("")
+#model.eval()
+#correct, total = 0, 0
+#start_test_time = time.time()
+#print("Beginning Testing:")
+#with torch.no_grad():
+#    for images, labels in test_loader:
+#        images, labels = images.to(device), labels.to(device)
+#        outputs = model(images)
+#        _, preds = torch.max(outputs, 1)
+#        total += labels.size(0)
+#        correct += (preds == labels).sum().item()
+#
+#print(f"Test Accuracy: {100 * correct / total:.2f}%")
+#print(f"Finished Testing in {time.time() - start_test_time} seconds")
+#
+#
+#
+#
+## RESULTS
+## Epochs:20, Final loss: 0.0099, Accuracy: 63.78 (0.5 normalisation) (32 batch size) (epoch time 125s)
+## ok so next one was horrible, 49.18 with scheduler, 16 batch, custom transformer
+##train_transform = transforms.Compose([
+##    transforms.Grayscale(num_output_channels=3),
+##    transforms.Resize((224, 224)),
+##    transforms.RandomHorizontalFlip(p=0.5),
+##    transforms.RandomRotation(degrees=10),
 #    transforms.ColorJitter(brightness=0.2, contrast=0.2),
 #    transforms.ToTensor(),
 #    transforms.Normalize(mean=mean.tolist(), std=std.tolist())
