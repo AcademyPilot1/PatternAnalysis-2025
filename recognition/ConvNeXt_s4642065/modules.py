@@ -1,9 +1,10 @@
-# Note: I am mainly working in google colab with jupyter notebooks, so these files
-# are essentially copies of each of the colab cells in order
+"""
+@file    modules.py
+@brief   Define ConvNeXt model architecture
+@author  Aaron Morrow, s4642065
+@date    17-10-2025
+"""
 
-# also assuming the 'modules.py' file is for the model architecture
-
-# Various import statements
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -33,6 +34,7 @@ class DropPath(nn.Module):
         self.drop_prob = drop_prob
 
     def forward(self, x):
+        # Stochastic depth regularization
         if self.drop_prob == 0. or not self.training:
             return x
         keep_prob = 1 - self.drop_prob
@@ -55,6 +57,7 @@ class SmallBlock(nn.Module):
         self.pw2 = nn.Linear(4*dim, dim)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
+        # Stabilization parameter
         if layer_scale_init_value > 0:
             self.gamma = nn.Parameter(layer_scale_init_value * torch.ones((dim)), requires_grad=True)
         else:
@@ -156,35 +159,3 @@ class ConvNeXt(nn.Module):
         x = self.head(x)
         return x
 
-
-#
-#
-## RESULTS
-## Epochs:20, Final loss: 0.0099, Accuracy: 63.78 (0.5 normalisation) (32 batch size) (epoch time 125s)
-## ok so next one was horrible, 49.18 with scheduler, 16 batch, custom transformer
-##train_transform = transforms.Compose([
-##    transforms.Grayscale(num_output_channels=3),
-##    transforms.Resize((224, 224)),
-##    transforms.RandomHorizontalFlip(p=0.5),
-##    transforms.RandomRotation(degrees=10),
-#    transforms.ColorJitter(brightness=0.2, contrast=0.2),
-#    transforms.ToTensor(),
-#    transforms.Normalize(mean=mean.tolist(), std=std.tolist())
-#])
-
-#Epoch 20, Loss: 0.1063, Time: 162.90509629249573
-#Finished Training on 21520 images in 3225.07324385643 seconds
-
-#Beginning Testing:
-#Test Accuracy: 67.84%
-#Finished Testing in 45.61187219619751 seconds
-
-# best result yet acheived on smaller convnext model = MiniConvNeXt(in_chans=1, num_classes=2,
-#                 depths=(1,1,2,1), dims=(32,64,128,256)).to(device)
-# after 100 epochs, final loss 0.0653 (best 0.606) accuracy 75.28%
-# this was after reverting to layernorm and kernel size = 3
-# model trained in 4922 seconds
-
-# ok improvement with dropout 0.2 added to model forward and new transforms
-# after 100 epochs, final loss 0.0388 (best 0.0350) accuracy only marginally
-# better at 76.1%

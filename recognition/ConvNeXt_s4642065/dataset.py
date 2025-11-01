@@ -1,4 +1,10 @@
-# dataset.py
+"""
+@file    dataset.py
+@brief   Prepare ADNI dataset DataLoader with preprocessing, normalization, and validation split
+@author  Aaron Morrow, s4642065
+@date    18-10-2025
+"""
+
 import torch
 from torch.utils.data import DataLoader, random_split
 from torchvision import datasets, transforms
@@ -50,9 +56,12 @@ class ADNIDataLoader:
             transforms.Resize((224, 224)),
             transforms.ToTensor()
         ])
+        
+        # Create temporary DataLoader for mean/std calculation
         temp_dataset = datasets.ImageFolder(root=f"{self.data_dir}/train", transform=temp_transform)
         temp_loader = DataLoader(temp_dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers)
 
+        # Calculate mean and std
         mean, std, total = 0.0, 0.0, 0
         for images, _ in tqdm(temp_loader, desc="Calculating mean/std"):
             batch_samples = images.size(0)
@@ -95,6 +104,8 @@ class ADNIDataLoader:
         total_size = len(dataset)
         val_size = int(total_size * self.val_split)
         train_size = total_size - val_size
+        
+        # Use random_split to create subsets
         train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
         print(f"Split training data into {train_size} train and {val_size} validation samples.")
         return train_dataset, val_dataset

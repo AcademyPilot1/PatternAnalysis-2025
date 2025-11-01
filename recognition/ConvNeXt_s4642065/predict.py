@@ -1,8 +1,8 @@
 """
 @file    predict.py
 @brief   Perform inference or evaluation with a trained MiniConvNeXt model
-@author  Aaron
-@date    2025-10-31
+@author  Aaron Morrow, s4642065
+@date    28-10-2025
 """
 
 import torch
@@ -38,7 +38,7 @@ def evaluate_model(model, dataloader, criterion, device):
     model.eval()
 
     correct, total, running_loss = 0, 0, 0.0
-    all_preds, all_labels = [], []
+    all_preds, all_labels = [], [] # Store labels and predictions
 
     with torch.no_grad():
         for images, labels in dataloader:
@@ -52,22 +52,25 @@ def evaluate_model(model, dataloader, criterion, device):
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
 
+            # Collect all predictions and labels
             all_preds.extend(predicted.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())
 
     avg_loss = running_loss / len(dataloader)
     accuracy = 100 * correct / total
+    
+    # Compute confusion matrix
     conf_matrix = confusion_matrix(all_labels, all_preds)
 
+    # Print results
     print(f"Accuracy: {accuracy:.2f}% | Avg Loss: {avg_loss:.4f}")
     print("Confusion Matrix:\n", conf_matrix)
 
+    # Save results
     os.makedirs("outputs", exist_ok=True)
     plt.savefig("outputs/confusion_matrix.png", bbox_inches="tight")
 
-
-
-    # Optional: visualize confusion matrix
+    # Visualize confusion matrix
     disp = ConfusionMatrixDisplay(conf_matrix)
     disp.plot(cmap="Blues", values_format='d')
     plt.title("Test Set Confusion Matrix")
@@ -151,7 +154,7 @@ if __name__ == "__main__":
 
         # Load test dataset
         data = ADNIDataLoader(batch_size=args.batch_size, data_dir=args.path, compute_norm=True)
-        _, _, test_loader = data.load()  # reuse your load() split
+        _, _, test_loader = data.load()  # reuse load() split
 
         criterion = torch.nn.CrossEntropyLoss(label_smoothing=0.1).to(device)
         accuracy, avg_loss, conf = evaluate_model(model, test_loader, criterion, device)

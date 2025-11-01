@@ -1,3 +1,10 @@
+"""
+@file    train.py
+@brief   Script for training ConvNeXt model on ADNI dataset
+@author  Aaron Morrow, s4642065
+@date    28-10-2025
+"""
+
 import os
 import csv
 import time
